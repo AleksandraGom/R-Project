@@ -1,1 +1,2 @@
-# Rproject
+# Analysis of the expression of ephrin proteins and their receptors based on data collected in the GEO database record - GDS1375
+An analysis of the expression of 8 ephrins, designated sequentially: efna1, efna2, efna3, efna4, efna5, efnb1, efnb2, efnb3 and 11 ephrin receptors, designated sequentially epha1, epha2, epha3, epha4, epha5, epha7, ephb1, ephb2, ephb3, ephb4, ephb6 was performed. The analysis was performed on 70 samples corresponding to three types of disease states: 45 primary melanomas, 18 benign nevi and 7 normal skin tissues. The Kruskal-Wallis non-parametric, statistical test and Dunn's post-hoc test were chosen to compare the results in different groups (in samples corresponding to different disease states).
