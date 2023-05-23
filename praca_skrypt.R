@@ -1,4 +1,4 @@
-#Plik zawiera jedynie kod wykorzystany w analizie .
+#Plik zawiera jedynie kod wykorzystany w analizie.
 #Proszę o zapoznanie się z dodatkowymi plikami praca_skrypt.Rmd oraz praca_skrypt.html, które
 #zawierają szczegółowy opis outputów i ostateczne podsumowanie.
 
