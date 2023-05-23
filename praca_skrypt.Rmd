@@ -1,0 +1,1416 @@
+---
+title: "Analiza ekspresji białek efryn i ich receptorów na podstawie danych zgromadzonych w rekordzie bazy danych GEO - GDS1375"
+author: "Aleksandra Gomółka"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: false
+    theme: united
+    highlight: tango
+    toc_float: true
+---
+
+```{r include=FALSE}
+library("ggplot2")
+library("ggpubr")
+library("nortest")
+library("tidyverse")
+library("scatterplot3d")
+library("emmeans")
+library("effects")
+library("lme4")
+library("lmerTest")
+library("car")
+library("openxlsx")
+library("devEMF")
+library("RColorBrewer")
+library("glue")
+library("ggtext")
+library("dunn.test")
+library("FSA")
+library("rcompanion")
+```
+
+```{r eval=FALSE, include=FALSE}
+png(file = "A1_MinMax.png")
+dev.off()
+
+display.brewer.all()
+scale_fill_brewer(palette = "Set3")
+
+data_norm <- subset(data, State == "normal")
+data_beni <- subset(data, State == "benign nevi")
+data_mela <- subset(data, State == "malignant melanoma")
+```
+
+Przeprowadzono analizę ekspresji 8 efryn, oznaczonych kolejno: efna1, efna2, efna3, efna4, efna5, efnb1, efnb2, efnb3 oraz 11 receptorów efryn, oznaczonych kolejno epha1, epha2, epha3, epha4, epha5, epha7, ephb1, ephb2, ephb3, ephb4, ephb6.
+Analizę wykonano dla 70 próbek odpowiadających trzem typom stanów chorobowych: 45 czerniaków pierwotnych, 18 łagodnych znamion i 7 normalnych tkanek skóry.
+W celu porównania wyników w różnych grupach (w próbkach odpowiadających różnym stanom chorobowym) wybrano nieparametryczny test statystyczny Kruskala-Wallisa oraz test post-hoc Dunna.
+
+# Efryny - analiza ekspresji
+
+## A1
+
+```{r echo=FALSE}
+data <- read.xlsx("A1.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r eval=FALSE, include=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(text = element_text(size = 14)) +
+labs(x = "", y = "Względny poziom ekspresji EFNA1 (log2)") + 
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("normal\n(n={normal_n})"), glue("benign nevi\n(n={benignNevi_n})"), glue("malignant melanoma\n (n={malignantMelanoma_n})"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot + scale_y_continuous(limits = c(0,11), breaks = c(1,2,3,4,5,6,7,8,9,10))
+```
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) + 
+labs(x = "", y = "Względny poziom ekspresji  EFNA1") + 
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+```{r eval=FALSE, include=FALSE}
+hist <- ggplot(data, aes(x = NormLog2_value)) +
+  geom_histogram(binwidth=0.7, colour="black", fill="grey") +  
+  facet_wrap(~State,scales="fixed")+
+  theme_classic()+ xlab("Względny poziom ekspresji")
+
+hist
+
+hist_norm <- ggplot(data_norm, aes(x = NormLog2_value)) +
+  geom_histogram(binwidth=0.7, colour="black", fill="grey") + 
+  theme_classic()+ xlab("Względny poziom ekspresji")
+
+hist_norm
+
+ggplot(data_norm, aes(x = NormLog2_value)) + geom_histogram(aes(y=..density..), colour="black", fill="skyblue", binwidth = 10) + geom_density(color="red", size=1)
+
+ggplot(data_beni, aes(x = NormLog2_value)) + geom_histogram(aes(y=..density..), colour="black", fill="skyblue", binwidth = 10) + geom_density(color="red", size=1)
+
+ggplot(data_mela, aes(x = NormLog2_value)) + geom_histogram(aes(y=..density..), colour="black", fill="skyblue", binwidth = 10) + geom_density(color="red", size=1)
+```
+
+<!-- **Sprawdzenie założeń - wykresy diagnostyczne** -->
+
+```{r eval=FALSE, include=FALSE}
+
+hist(data_norm$Value)
+hist(data_beni$Value)
+hist(data_mela$Value)
+
+ggdensity(data_norm$Value)
+ggdensity(data_beni$Value)
+ggdensity(data_mela$Value)
+
+
+ggqqplot(data_norm$Value)
+ggqqplot(data_beni$Value)
+ggqqplot(data_mela$Value)
+
+
+plot(data_aov,1)
+plot(data_aov,2)
+plot(data_aov,4)
+
+shapiro.test(data_norm$Value)
+shapiro.test(data_beni$Value)
+shapiro.test(data_mela$Value)
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+```{r eval=FALSE, include=FALSE}
+kruskal.test(NormLog2_value ~ State, data = data)
+```
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla efryny A1 test Dunna wykazał istotne statystycznie różnice w malignant melanoma-normal. Wartość p-value (ok. 0.052415382) w benign nevi-malignant melanoma jest nieznacznie wyższa niż 0.05, ale mimo to możemy ten wynik zaliczyć jako istotny statystycznie, ponieważ poziom istotności nie przekracza 5.5 %.
+
+```{r eval=FALSE, include=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bh")
+```
+
+```{r eval=FALSE, include=FALSE}
+pairwise.wilcox.test(data$NormLog2_value, data$State, p.adj = "bonferroni")
+```
+
+
+## A2
+
+```{r echo=FALSE}
+data <- read.xlsx("A2.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EFNA2") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie uzyskanego wyniku (p-values > 0.05) możemy stwierdzić, że należy przyjąć hipotezę zerową, która mówi, że brak istotnych statystycznie różnic pomiędzy badanymi grupami.
+
+
+## A3
+
+```{r echo=FALSE}
+data <- read.xlsx("A3.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EFNA3") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla efryny A3 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma oraz malignant melanoma-normal.
+
+
+## A4
+
+```{r echo=FALSE}
+data <- read.xlsx("A4.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EFNA4") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla efryny A4 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma.
+
+
+## A5
+
+```{r echo=FALSE}
+data <- read.xlsx("A5.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EFNA5") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla efryny A5 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma oraz malignant melanoma-normal.
+
+
+## B1
+
+```{r echo=FALSE}
+data <- read.xlsx("B1.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EFNB1") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla efryny B1 test Dunna wykazał, że wartość p-value (ok. 0.05436719) w malignant melanoma-normal jest nieznacznie wyższa niż 0.05, ale mimo to możemy ten wynik zaliczyć jako istotny statystycznie, ponieważ poziom istotności nie przekracza 5.5 %.
+
+
+## B2
+
+```{r echo=FALSE}
+data <- read.xlsx("B2.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EFNB2") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla efryny B2 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma oraz malignant melanoma-normal.
+
+
+## B3
+
+```{r echo=FALSE}
+data <- read.xlsx("B3.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EFNB3") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie uzyskanego wyniku (p-values > 0.05) możemy stwierdzić, że należy przyjąć hipotezę zerową, która mówi, że brak istotnych statystycznie różnic pomiędzy badanymi grupami.
+
+# Podsumowanie - efryny wykazujące różnice w poziomie ekspresji w zależności od stanu chorobowego
+
+Istotne statystycznie różnice w pozimie ekspresji efryn dla czerniaków pierwotnych, łagodnych znamion i normalnych tkanek skóry uzyskano dla efryn **A1**, **A3**, **A4**, **A5**, **B1** oraz **B2**. 
+
+**-->** Dla efryny **A1** test Dunna wykazał istotne statystycznie różnice w **malignant melanoma-normal**. Wartość p-value (ok. 0.052415382) w **benign nevi-malignant melanoma** jest nieznacznie wyższa niż 0.05, ale mimo to możemy ten wynik zaliczyć jako istotny statystycznie, ponieważ poziom istotności nie przekracza 5.5 %.
+
+**-->** Dla efryny **A3** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma** oraz **malignant melanoma-normal**.
+
+**-->** Dla efryny **A4** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma**.
+
+**-->** Dla efryny **A5** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma** oraz **malignant melanoma-normal**.
+
+**-->** Dla efryny **B1** test Dunna wykazał, że wartość p-value (ok. 0.05436719) w **malignant melanoma-normal** jest nieznacznie wyższa niż 0.05, ale mimo to możemy ten wynik zaliczyć jako istotny statystycznie, ponieważ poziom istotności nie przekracza 5.5 %.
+
+**-->** Dla efryny **B2** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma** oraz **malignant melanoma-normal**.
+
+
+# Receptory - analiza ekspresji
+
+## A1
+
+```{r echo=FALSE}
+data <- read.xlsx("A1R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHA1") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora A1 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma oraz malignant melanoma-normal.
+
+
+## A2
+
+```{r echo=FALSE}
+data <- read.xlsx("A2R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHA2") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora A2 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma oraz malignant melanoma-normal.
+
+
+## A3
+
+```{r echo=FALSE}
+data <- read.xlsx("A3R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHA3") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora A3 test Dunna wykazał istotne statystycznie różnice w benign nevi-normal oraz malignant melanoma-normal.
+
+
+## A4
+
+```{r echo=FALSE}
+data <- read.xlsx("A4R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHA4") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora A4 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma.
+
+
+## A5
+
+```{r echo=FALSE}
+data <- read.xlsx("A5R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHA5") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie uzyskanego wyniku (p-values > 0.05) możemy stwierdzić, że należy przyjąć hipotezę zerową, która mówi, że brak istotnych statystycznie różnic pomiędzy badanymi grupami.
+
+## A7
+
+```{r echo=FALSE}
+data <- read.xlsx("A7R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHA7") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie uzyskanego wyniku (p-values > 0.05) możemy stwierdzić, że należy przyjąć hipotezę zerową, która mówi, że brak istotnych statystycznie różnic pomiędzy badanymi grupami.
+
+## B1
+
+```{r echo=FALSE}
+data <- read.xlsx("B1R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHB1") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora B1 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma.
+
+
+## B2
+
+```{r echo=FALSE}
+data <- read.xlsx("B2R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHB2") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora B2 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma.
+
+
+## B3
+
+```{r echo=FALSE}
+data <- read.xlsx("B3R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHB3") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora B3 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma oraz malignant melanoma-normal.
+
+
+## B4
+
+```{r echo=FALSE}
+data <- read.xlsx("B4R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHB4") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora B4 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma oraz malignant melanoma-normal.
+
+
+## B6
+
+```{r echo=FALSE}
+data <- read.xlsx("B6R.xlsx")
+
+Order <- factor(data$State, levels=c("normal","benign nevi","malignant melanoma"))
+color <- c("white", "gray81", "gray52")
+Factor <- c("normal", "benign nevi", "malignant")
+```
+
+```{r echo=FALSE}
+sample_count <- data %>%
+  count(State)
+
+normal_n <- sample_count %>%
+  filter(State == "normal") %>%
+  pull(n)
+
+benignNevi_n <- sample_count %>%
+  filter(State == "benign nevi") %>%
+  pull(n)
+
+malignantMelanoma_n <- sample_count %>%
+  filter(State== "malignant melanoma") %>%
+  pull(n)
+```
+
+**Statystyka graficzna z normalizacją Log2**
+
+```{r echo=FALSE}
+data$NormLog2_value = log2(data$Value)
+
+data_boxplot <- ggplot(data = data, mapping = aes(x = Order, y = NormLog2_value, fill = State)) + theme_classic() + geom_boxplot(alpha = 0.3) + theme(axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20), axis.title.y = element_text(size = 20)) +
+labs(x = "", y = "Względny poziom ekspresji  EPHB6") +
+theme(legend.position="none") + scale_fill_manual(breaks = Factor, values = color) + theme(panel.border = element_rect(color = "black",fill = NA, size = 1)) + scale_x_discrete(breaks=c("normal", "benign nevi", "malignant melanoma"),labels=c(glue("skóra"), glue("znamię"), glue("czerniak"))) + stat_boxplot(geom = "errorbar",width = 0.4) + geom_boxplot(outlier.color = "black", outlier.shape = 1)
+data_boxplot
+```
+
+**Statystyka opisowa**
+
+```{r echo=FALSE}
+data %>% group_by(State) %>%
+summarize(mean = mean(NormLog2_value), median = median(NormLog2_value),
+            maximum = max(NormLog2_value), minimum = min(NormLog2_value),
+            sd = sd(NormLog2_value), N = length(NormLog2_value))
+```
+
+**Test nieparametryczny**
+
+Z uwagi na małą liczbę obserwacji do analizy istotności wyników wykorzystano test nieparametryczny Kruskala-Wallisa .
+
+
+``` {r echo=FALSE}
+kruskal.test(data$NormLog2_value ~ data$State)
+```
+
+Na podstawie otrzymanego wyniku (p-value < 0.05) możemy stwierdzić, że należy odrzucić hipotezę zerową i przyjąć hipotezę alternatywną, która mówi, że występują istotne statystycznie różnice pomiędzy badanymi grupami.
+
+**Testy post-hoc**
+
+```{r echo=FALSE}
+dunnTest(data$NormLog2_value, data$State, method = "bonferroni")
+``` 
+
+Wartości p-value mniejsze od 0.05 oznaczają, że względny poziom ekspresji efryn między różnymi stanami chorobowymi jest istotny statystycznie.
+Dla receptora B6 test Dunna wykazał istotne statystycznie różnice w benign nevi-malignant melanoma oraz malignant melanoma-normal.
+
+# Podsumowanie - receptory wykazujące różnice w poziomie ekspresji w zależności od stanu chorobowego
+
+Istotne statystycznie różnice w pozimie ekspresji efryn dla czerniaków pierwotnych, łagodnych znamion i normalnych tkanek skóry uzyskano dla efryn **A1**, **A2**, **A3**, **A4**, **B1**, **B2**, **B3**, **B4** oraz**B6**. 
+
+**-->** Dla receptora **A1** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma** oraz **malignant melanoma-normal**.
+
+**-->** Dla receptora **A2** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma** oraz **malignant melanoma-normal**.
+
+**-->** Dla receptora **A3** test Dunna wykazał istotne statystycznie różnice w **benign nevi-normal** oraz **malignant melanoma-normal**.
+
+**-->** Dla receptora **A4** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma**.
+
+
+**-->** Dla receptora **B1** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma**.
+
+**-->** Dla receptora **B2** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma**.
+
+**-->** Dla receptora **B3** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma** oraz **malignant melanoma-normal**.
+
+**-->** Dla receptora **B4** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma** oraz **malignant melanoma-normal**.
+
+**-->** Dla receptora **B6** test Dunna wykazał istotne statystycznie różnice w **benign nevi-malignant melanoma** oraz **malignant melanoma-normal**.
