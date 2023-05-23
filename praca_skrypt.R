@@ -1,6 +1,6 @@
 #Plik zawiera jedynie kod wykorzystany w analizie.
 #Proszę o zapoznanie się z dodatkowymi plikami praca_skrypt.Rmd oraz praca_skrypt.html, które
-#zawierają szczegółowy opis outputów i ostateczne podsumowanie.
+#zawierają opis outputów i ostateczne podsumowanie.
 
 library("ggplot2")
 library("ggpubr")
